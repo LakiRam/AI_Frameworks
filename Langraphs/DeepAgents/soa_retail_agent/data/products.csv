@@ -1,0 +1,21 @@
+sku,product_name,category,subcategory,unit_cost,base_price,pack_size,perishable
+SKU001,Coke 2L,Beverages,Carbonated,52.00,89.00,1,No
+SKU002,Pepsi 2L,Beverages,Carbonated,50.00,85.00,1,No
+SKU003,Sprite 1L,Beverages,Carbonated,28.00,49.00,1,No
+SKU004,Tropicana Orange 1L,Beverages,Juice,68.00,119.00,1,Yes
+SKU005,Amul Milk 1L,Dairy,Milk,48.00,68.00,1,Yes
+SKU006,Britannia Bread 400g,Bakery,Bread,28.00,42.00,1,Yes
+SKU007,Maggi Noodles 70g,Packaged Food,Instant,8.00,14.00,1,No
+SKU008,Lay's Classic 90g,Snacks,Chips,18.00,30.00,1,No
+SKU009,Surf Excel 1kg,Home Care,Detergent,140.00,229.00,1,No
+SKU010,Colgate Total 200g,Personal Care,Toothpaste,72.00,135.00,1,No
+SKU011,Nivea Body Lotion 400ml,Personal Care,Skincare,210.00,349.00,1,No
+SKU012,Tata Salt 1kg,Pantry,Staples,18.00,28.00,1,No
+SKU013,Aashirvaad Atta 5kg,Pantry,Staples,235.00,310.00,1,No
+SKU014,Basmati Rice 5kg,Pantry,Staples,420.00,629.00,1,No
+SKU015,Dove Soap 100g,Personal Care,Bath,42.00,72.00,1,No
+SKU016,Bingo Mad Angles 80g,Snacks,Chips,16.00,25.00,1,No
+SKU017,Real Mango Juice 1L,Beverages,Juice,58.00,99.00,1,Yes
+SKU018,Mother Dairy Curd 400g,Dairy,Yogurt,32.00,50.00,1,Yes
+SKU019,Parle-G Biscuit 800g,Snacks,Biscuit,68.00,110.00,1,No
+SKU020,Red Bull 250ml,Beverages,Energy,95.00,125.00,1,No

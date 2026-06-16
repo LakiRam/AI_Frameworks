@@ -1,0 +1,8 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "soa_retail": "soa_retail_agent.graph:graph"
+  },
+  "env": ".env",
+  "python_version": "3.11"
+}
