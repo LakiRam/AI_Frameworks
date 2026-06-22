@@ -17,6 +17,30 @@ from ..llm import get_llm
 from ..state import RetailState, AgentFinding
 
 
+def _coerce_content_to_text(content) -> str:
+    """Normalize LangChain message content to a plain string.
+
+    Some providers return `AIMessage.content` as a list of content blocks
+    (e.g. ``[{"type": "text", "text": "..."}]``) instead of a string.
+    Downstream code (`.strip()`, slicing for previews) expects a string.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for p in content:
+            if isinstance(p, str):
+                parts.append(p)
+            elif isinstance(p, dict):
+                # Common shapes: {"type": "text", "text": "..."} or {"text": "..."}
+                if isinstance(p.get("text"), str):
+                    parts.append(p["text"])
+                elif isinstance(p.get("content"), str):
+                    parts.append(p["content"])
+        return "\n".join(parts)
+    return "" if content is None else str(content)
+
+
 def make_agent_node(
     agent_name: str,
     system_prompt: str,
@@ -33,7 +57,16 @@ def make_agent_node(
     )
 
     def node(state: RetailState) -> dict:
-        request = state.get("request", "")
+        request = (state.get("request") or "").strip()
+        if not request:
+            # Fallback: take the first HumanMessage (Studio chat puts input
+            # into `messages` rather than `request`).
+            for m in state.get("messages", []) or []:
+                if getattr(m, "type", None) == "human":
+                    c = getattr(m, "content", "")
+                    if isinstance(c, str) and c.strip():
+                        request = c.strip()
+                        break
         context = state.get("context", {})
         prior = "\n".join(
             f"- [{f.get('agent')}] {f.get('summary','')}" for f in state.get("findings", [])
@@ -46,7 +79,8 @@ def make_agent_node(
 
         result = react_agent.invoke({"messages": [HumanMessage(content=user_block)]})
         final_msg = result["messages"][-1]
-        summary = final_msg.content if isinstance(final_msg, AIMessage) else str(final_msg)
+        raw_content = final_msg.content if isinstance(final_msg, AIMessage) else str(final_msg)
+        summary = _coerce_content_to_text(raw_content)
 
         # Collect tool call actions executed by the ReAct loop
         actions: list[dict] = []

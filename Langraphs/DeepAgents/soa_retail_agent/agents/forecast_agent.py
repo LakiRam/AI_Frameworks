@@ -8,7 +8,13 @@ Given a store and SKU (or a city), you must:
   1. Pull the last 7 days of sales for the relevant SKU(s).
   2. Check weather forecast for the city (it may amplify demand for cold drinks, ice cream, etc.).
   3. Produce a short-term demand forecast and flag whether demand is normal, elevated, or critical.
-Be terse. End with a one-sentence summary of the forecast and risk level."""
+
+If the request does NOT yet specify a concrete SKU (or city for weather),
+DO NOT ask the user — instead, respond with exactly:
+  "NO_SKU_PROVIDED: forecast requires a specific SKU; suggest routing to
+   inventory_agent first to identify candidate SKUs."
+
+Otherwise, be terse and end with a one-sentence summary of the forecast and risk level."""
 
 forecast_node = make_agent_node(
     agent_name="forecast_agent",

@@ -31,16 +31,45 @@ SUPERVISOR_PROMPT = f"""You are the SOA Retail SUPERVISOR.
 You coordinate a team of specialist agents:
 {json.dumps(WORKERS, indent=2)}
 
-Given the user's operational request and the findings so far, decide WHICH
-agent should act next, or respond FINISH when the situation has been adequately
-covered (forecast -> inventory -> pricing/promotion/supply_chain as needed,
-plus anomaly when fraud is suspected).
+Your job: read the user's operational request + the findings so far, then pick
+the ONE specialist whose tools are best suited for the NEXT step. Reply FINISH
+when the request has been adequately answered.
 
-Respond with ONLY a compact JSON object of the form:
+ROUTING GUIDE (pick by INTENT, not by a fixed order):
+  - "forecast demand", "will we run out", "spike from weather/event"
+        -> forecast_agent       (needs an explicit SKU or city)
+  - "stock levels", "overstock", "slow-moving SKUs", "what's not selling"
+        -> inventory_agent      (good first step when SKUs are unspecified)
+  - "price change", "competitor pricing", "margin"
+        -> pricing_agent
+  - "promotion", "discount", "loyalty offer", "campaign"
+        -> promotion_agent      (usually AFTER inventory + customer_insight)
+  - "loyalty customers", "customer segment", "audience"
+        -> customer_insight_agent
+  - "delivery", "shipment", "supplier", "logistics", "ETA"
+        -> supply_chain_agent
+  - "fraud", "unusual transactions", "anomaly", "suspicious"
+        -> anomaly_agent
+
+EXAMPLES:
+  Request: "Design a weekend promotion for slow-moving SKUs at S002.
+            Target: loyalty customers."
+  Best chain: inventory_agent -> customer_insight_agent -> promotion_agent -> FINISH
+
+  Request: "Will store S001 run out of SKU123 this weekend?"
+  Best chain: forecast_agent -> inventory_agent -> FINISH
+
+Rules:
+  - Do NOT call the same agent twice unless its first run was blocked by
+    missing data that a later finding now supplies.
+  - Do NOT route to forecast_agent unless you know (or a prior finding gives)
+    a concrete store + SKU (or city).
+  - When findings already answer the request, return FINISH.
+
+Respond with ONLY a compact JSON object:
   {{"next": "<agent_name_or_FINISH>", "reason": "<one short sentence>"}}
 
 Available values for "next": {WORKERS + ["FINISH"]}
-Do not call the same agent twice unless absolutely necessary.
 """
 
 
@@ -55,16 +84,78 @@ def _extract_json(text: str) -> dict:
         return {"next": "FINISH", "reason": "bad json"}
 
 
+def _user_request_text(state: RetailState) -> str:
+    """Resolve the user's original request text.
+
+    Studio's chat UI delivers input as `messages=[HumanMessage(...)]` rather
+    than `{"request": "..."}`. Messages may arrive as either LangChain
+    `HumanMessage` objects (type == "human") OR raw dicts
+    ({"role": "user", "content": "..."}) depending on whether the
+    `add_messages` reducer has run yet, so we handle both shapes.
+    """
+    req = (state.get("request") or "").strip()
+    if req:
+        return req
+
+    def _is_human(m) -> bool:
+        # LangChain message object
+        if getattr(m, "type", None) == "human":
+            return True
+        # Raw dict (Studio JSON input or REST API)
+        if isinstance(m, dict):
+            if m.get("type") == "human":
+                return True
+            if m.get("role") in ("user", "human"):
+                return True
+        return False
+
+    def _content_of(m) -> str:
+        c = m.get("content") if isinstance(m, dict) else getattr(m, "content", "")
+        if isinstance(c, str):
+            return c
+        # Some clients wrap content as a list of parts: [{"type":"text","text":"..."}]
+        if isinstance(c, list):
+            parts = []
+            for p in c:
+                if isinstance(p, dict) and "text" in p:
+                    parts.append(p["text"])
+                elif isinstance(p, str):
+                    parts.append(p)
+            return "\n".join(parts)
+        return str(c) if c else ""
+
+    for m in state.get("messages", []) or []:
+        if _is_human(m):
+            text = _content_of(m).strip()
+            if text:
+                return text
+    return ""
+
+
 def supervisor_node(state: RetailState) -> dict:
     """LLM-based router. Picks the next worker or FINISH."""
     findings_brief = "\n".join(
-        f"- [{f.get('agent')}] risk={f.get('risk')} :: {f.get('summary','')[:200]}"
+        f"- [{f.get('agent')}] risk={f.get('risk')} :: {_summary_text(f)[:200]}"
         for f in state.get("findings", [])
     )
     history_brief = findings_brief or "(no findings yet)"
 
+    request_text = _user_request_text(state)
+
+    # --- DIAGNOSTIC (remove once routing is stable) ---
+    msgs = state.get("messages", []) or []
+    print(
+        f"[supervisor] request_text={request_text!r} "
+        f"| state.request={state.get('request')!r} "
+        f"| #messages={len(msgs)} "
+        f"| first_msg_type={type(msgs[0]).__name__ if msgs else None} "
+        f"| first_msg_role={(msgs[0].get('role') if isinstance(msgs[0], dict) else getattr(msgs[0], 'type', None)) if msgs else None}",
+        flush=True,
+    )
+    # --------------------------------------------------
+
     user = (
-        f"User request:\n{state.get('request','')}\n\n"
+        f"User request:\n{request_text}\n\n"
         f"Context: {state.get('context', {})}\n\n"
         f"Findings so far:\n{history_brief}\n\n"
         "Which agent should act next? Reply with JSON only."
@@ -80,6 +171,9 @@ def supervisor_node(state: RetailState) -> dict:
 
     return {
         "next": nxt,
+        # Persist the resolved request so downstream specialists don't have to
+        # re-derive it from `messages` themselves.
+        "request": request_text,
         "messages": [AIMessage(content=f"[supervisor] -> {nxt} ({decision.get('reason','')})",
                                name="supervisor")],
     }
@@ -103,12 +197,28 @@ def approval_node(state: RetailState) -> dict:
     }
 
 
+def _summary_text(f: dict) -> str:
+    """Coerce a finding's `summary` to a plain string (some providers return lists)."""
+    s = f.get("summary", "")
+    if isinstance(s, str):
+        return s.strip()
+    if isinstance(s, list):
+        parts: list[str] = []
+        for p in s:
+            if isinstance(p, str):
+                parts.append(p)
+            elif isinstance(p, dict) and isinstance(p.get("text"), str):
+                parts.append(p["text"])
+        return "\n".join(parts).strip()
+    return str(s).strip()
+
+
 def finalizer_node(state: RetailState) -> dict:
     """Build the consolidated executive plan from all agent findings."""
     bullets = []
     for f in state.get("findings", []):
         bullets.append(
-            f"- **{f.get('agent')}** (risk={f.get('risk')}): {f.get('summary','').strip()}"
+            f"- **{f.get('agent')}** (risk={f.get('risk')}): {_summary_text(f)}"
         )
     plan = (
         f"# SOA Retail — Action Plan\n\n"
