@@ -1,0 +1,31 @@
+# --- LangGraph core ---
+langgraph>=0.2.50
+langgraph-checkpoint-sqlite>=2.0.1
+langgraph-cli[inmem]>=0.1.55
+
+# --- LangChain (LLM + tool abstractions) ---
+langchain>=0.3.7
+langchain-core>=0.3.21
+langchain-community>=0.3.5
+langchain-ollama>=0.2.0
+langchain-google-genai>=2.0.0
+
+# --- Data / mock backends ---
+pandas>=2.2.0
+numpy>=1.26.0
+pydantic>=2.9.0
+python-dotenv>=1.0.1
+
+# --- FastAPI HITL UI ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+jinja2>=3.1.4
+python-multipart>=0.0.12
+
+# --- Observability (optional) ---
+langsmith>=0.1.140
+
+# --- Tests ---
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+httpx>=0.27.0

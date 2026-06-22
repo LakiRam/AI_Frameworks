@@ -1,0 +1,11 @@
+customer_id,name,segment,city,loyalty_tier,ltv,churn_risk
+C0001,Aarav Sharma,Family,Mumbai,Gold,148500,0.12
+C0002,Priya Iyer,Young Professional,Bangalore,Silver,62300,0.34
+C0003,Rohan Mehta,Family,Mumbai,Platinum,289400,0.05
+C0004,Sneha Reddy,Student,Hyderabad,Bronze,18200,0.61
+C0005,Vikram Singh,Senior,Delhi,Gold,176800,0.18
+C0006,Anika Kapoor,Young Professional,Bangalore,Gold,131200,0.22
+C0007,Karthik Raj,Family,Chennai,Silver,71500,0.41
+C0008,Meera Nair,Family,Kochi,Platinum,312900,0.08
+C0009,Arjun Verma,Senior,Delhi,Bronze,24600,0.55
+C0010,Ishita Bose,Young Professional,Kolkata,Silver,58700,0.37
